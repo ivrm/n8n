@@ -126,7 +126,7 @@ export class EmbeddingsGoogleGemini implements INodeType {
 		const embeddings = new GoogleGenerativeAIEmbeddings({
 			apiKey: credentials.apiKey as string,
 			baseUrl: credentials.host as string,
-			model: modelName,
+			modelName,
 		});
 
 		return {
