@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import ExperimentalCanvasNodeSettings from './ExperimentalCanvasNodeSettings.vue';
-import { onBeforeUnmount, ref, computed } from 'vue';
+import { onBeforeUnmount, ref, computed, useTemplateRef, watch } from 'vue';
 import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { useExperimentalNdvStore } from '../experimentalNdv.store';
 import NodeTitle from '@/components/NodeTitle.vue';
 import { N8nIcon, N8nIconButton } from '@n8n/design-system';
 import { useVueFlow } from '@vue-flow/core';
-import { watchOnce } from '@vueuse/core';
+import { useActiveElement, useDebounce, watchOnce } from '@vueuse/core';
+import { useNDVStore } from '@/stores/ndv.store';
+import { useI18n } from '@n8n/i18n';
+import RunData from '@/components/RunData.vue';
 
-const { nodeId } = defineProps<{ nodeId: string }>();
+const { nodeId, isReadOnly, isSelected, isConfigurable } = defineProps<{
+	nodeId: string;
+	isReadOnly?: boolean;
+	isSelected?: boolean;
+	isConfigurable: boolean;
+}>();
 
+const ndvStore = useNDVStore();
 const experimentalNdvStore = useExperimentalNdvStore();
 const isExpanded = computed(() => !experimentalNdvStore.collapsedNodes[nodeId]);
 const nodeTypesStore = useNodeTypesStore();
@@ -22,7 +31,7 @@ const nodeType = computed(() => {
 	}
 	return null;
 });
-const vf = useVueFlow(workflowsStore.workflowId);
+const vf = useVueFlow();
 
 const isMoving = ref(false);
 
@@ -51,21 +60,73 @@ const isVisible = computed(() =>
 	),
 );
 const isOnceVisible = ref(isVisible.value);
+const containerRef = useTemplateRef('container');
+const inputPanelRef = useTemplateRef('inputPanelContainer');
+const activeElement = useActiveElement();
+const shouldShowInputPanel = ref(false);
 
-watchOnce(isVisible, (visible) => {
-	isOnceVisible.value = isOnceVisible.value || visible;
+const workflow = computed(() => workflowsStore.getCurrentWorkflow());
+const locale = useI18n();
+const runDataProps = computed<
+	Pick<InstanceType<typeof RunData>['$props'], 'node' | 'runIndex' | 'overrideOutputs'> | undefined
+>(() => {
+	const runIndex = 0;
+	const source =
+		node.value &&
+		workflowsStore.workflowExecutionData?.data?.resultData.runData[node.value.name]?.[runIndex]
+			?.source?.[0];
+	const inputNode = source && workflowsStore.nodesByName[source.previousNode];
+
+	if (!source || !inputNode) {
+		return undefined;
+	}
+
+	return {
+		node: {
+			...inputNode,
+			disabled: false, // For RunData component to render data from disabled nodes as well
+		},
+		runIndex: source.previousNodeRun ?? 0,
+		overrideOutputs: [source.previousNodeOutput ?? 0],
+	};
 });
 
 function handleToggleExpand() {
 	experimentalNdvStore.setNodeExpanded(nodeId);
 }
+
+watchOnce(isVisible, (visible) => {
+	isOnceVisible.value = isOnceVisible.value || visible;
+});
+
+watch(
+	() => isSelected,
+	(selected) => {
+		if (!selected) {
+			shouldShowInputPanel.value = false;
+		}
+	},
+);
+
+watch(activeElement, (active) => {
+	if (
+		active &&
+		containerRef.value?.contains(active) &&
+		active.closest('[data-test-id=inline-expression-editor-input]')
+	) {
+		shouldShowInputPanel.value = true;
+	}
+});
 </script>
 
 <template>
 	<div
 		ref="container"
-		:class="[$style.component, isExpanded ? $style.expanded : $style.collapsed]"
-		:style="{ '--zoom': `${1 / experimentalNdvStore.maxCanvasZoom}` }"
+		:class="[$style.component, isExpanded ? $style.expanded : $style.collapsed, 'nodrag']"
+		:style="{
+			'--zoom': `${1 / experimentalNdvStore.maxCanvasZoom}`,
+			'--node-width-scaler': isConfigurable ? 1 : 1.5,
+		}"
 	>
 		<template v-if="isOnceVisible">
 			<ExperimentalCanvasNodeSettings
@@ -75,6 +136,7 @@ function handleToggleExpand() {
 				:no-wheel="
 					!isMoving /* to not interrupt panning while allowing scroll of the settings pane, allow wheel event while panning */
 				"
+				:is-read-only="isReadOnly"
 			>
 				<template #actions>
 					<N8nIconButton
@@ -98,6 +160,39 @@ function handleToggleExpand() {
 				/>
 				<N8nIcon icon="maximize-2" size="large" />
 			</div>
+			<Transition name="input">
+				<div
+					v-if="shouldShowInputPanel && node"
+					ref="inputPanelContainer"
+					:class="$style.inputPanelContainer"
+					:tabindex="-1"
+				>
+					<RunData
+						v-if="runDataProps"
+						v-bind="runDataProps"
+						:class="$style.inputPanel"
+						:workflow="workflow"
+						:too-much-data-title="locale.baseText('ndv.output.tooMuchData.title')"
+						:no-data-in-branch-message="locale.baseText('ndv.output.noOutputDataInBranch')"
+						:executing-message="locale.baseText('ndv.output.executing')"
+						pane-type="input"
+						compact
+						disable-pin
+						disable-edit
+						disable-hover-highlight
+						display-mode="schema"
+						disable-display-mode-selection
+						disable-run-index-selection
+						mapping-enabled
+					>
+						<template #header>
+							<N8nText :class="$style.inputPanelTitle" :bold="true" color="text-light" size="small">
+								Input
+							</N8nText>
+						</template>
+					</RunData>
+				</div>
+			</Transition>
 		</template>
 	</div>
 </template>
@@ -107,20 +202,19 @@ function handleToggleExpand() {
 	position: relative;
 	align-items: flex-start;
 	justify-content: stretch;
-	overflow: visible;
-	border-width: 0 !important;
-	outline: none;
-	box-shadow: none !important;
-	background-color: transparent;
-	width: calc(var(--canvas-node--width) * 1.5);
+	border-width: 1px !important;
+	border-radius: var(--border-radius-base) !important;
+	width: calc(var(--canvas-node--width) * var(--node-width-scaler));
 
 	&.expanded {
 		cursor: default;
+		height: auto;
+		max-height: min(calc(var(--canvas-node--height) * 2), 300px);
+		min-height: calc(16px * 4);
 	}
-
 	&.collapsed {
-		height: 50px;
-		margin-block: calc(var(--canvas-node--width) * 0.25);
+		overflow: hidden;
+		height: calc(16px * 4);
 	}
 }
 
@@ -134,28 +228,17 @@ function handleToggleExpand() {
 
 :root .collapsedContent,
 :root .settingsView {
-	border-radius: var(--border-radius-base);
-	border: 1px solid var(--canvas-node--border-color, var(--color-foreground-xdark));
 	z-index: 1000;
-	position: absolute;
-	left: 0;
 	width: 100%;
+	border-radius: var(--border-radius-base);
 
-	:global(.selected) & {
-		box-shadow: 0 0 0 4px var(--color-canvas-selected-transparent);
-		z-index: 1001;
-	}
+	height: auto;
+	max-height: calc(min(calc(var(--canvas-node--height) * 2), 300px) - var(--border-width-base) * 2);
+	min-height: calc(16px * 4);
 
 	& > * {
 		zoom: var(--zoom);
 	}
-}
-
-:root .settingsView {
-	height: auto;
-	max-height: min(200%, 300px);
-	top: -10%;
-	min-height: 120%;
 }
 
 .collapsedContent {
@@ -169,5 +252,42 @@ function handleToggleExpand() {
 	background-color: var(--color-background-xlight);
 	color: var(--color-text-base);
 	cursor: pointer;
+}
+
+.inputPanelContainer {
+	position: absolute;
+	overflow: hidden;
+	right: 100%;
+	top: 0;
+	padding-right: var(--spacing-4xs);
+	margin-top: calc(-1 * var(--border-width-base));
+	height: 100%;
+	width: 240px;
+	z-index: 2000;
+}
+
+.inputPanel {
+	border: var(--border-base);
+	border-width: 2px;
+	background-color: var(--color-background-light);
+	border-radius: var(--border-radius-large);
+	zoom: var(--zoom);
+}
+
+.inputPanelTitle {
+	text-transform: uppercase;
+	letter-spacing: 3px;
+}
+</style>
+
+<style lang="scss" scoped>
+.input-enter-active,
+.input-leave-active {
+	transition: opacity 0.3s ease;
+}
+
+.input-enter-from,
+.input-leave-to {
+	opacity: 0;
 }
 </style>
