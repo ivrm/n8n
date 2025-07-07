@@ -21,6 +21,7 @@ import { useNDVStore } from '@/stores/ndv.store';
 import { useWorkflowsStore } from '@/stores/workflows.store';
 import { CUSTOM_API_CALL_KEY } from '@/constants';
 import { omitKey } from '@/utils/objectUtils';
+import type { JsonValue } from 'n8n-workflow';
 
 export function useNodeSettingsParameters() {
 	const workflowsStore = useWorkflowsStore();
@@ -236,10 +237,7 @@ export function useNodeSettingsParameters() {
 		focusPanelStore.focusPanelActive = true;
 	}
 
-	function shouldSkipParamValidation(
-		parameter: INodeProperties,
-		value: string | number | boolean | null,
-	) {
+	function shouldSkipParamValidation(parameter: INodeProperties, value: JsonValue) {
 		return (
 			(typeof value === 'string' && value.includes(CUSTOM_API_CALL_KEY)) ||
 			(['options', 'multiOptions'].includes(parameter.type) &&
