@@ -236,8 +236,15 @@ export function useNodeSettingsParameters() {
 		focusPanelStore.focusPanelActive = true;
 	}
 
-	function shouldSkipParamValidation(value: string | number | boolean | null) {
-		return typeof value === 'string' && value.includes(CUSTOM_API_CALL_KEY);
+	function shouldSkipParamValidation(
+		parameter: INodeProperties,
+		value: string | number | boolean | null,
+	) {
+		return (
+			(typeof value === 'string' && value.includes(CUSTOM_API_CALL_KEY)) ||
+			(['options', 'multiOptions'].includes(parameter.type) &&
+				Boolean(parameter.allowArbitraryValues))
+		);
 	}
 
 	return {
