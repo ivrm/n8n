@@ -6,7 +6,7 @@ import type {
 	NodeParameterValue,
 	NodeParameterValueType,
 } from 'n8n-workflow';
-import { ADD_FORM_NOTICE, deepCopy, NodeHelpers } from 'n8n-workflow';
+import { ADD_FORM_NOTICE, deepCopy, getParameterValueByPath, NodeHelpers } from 'n8n-workflow';
 import { computed, defineAsyncComponent, onErrorCaptured, ref, watch, type WatchSource } from 'vue';
 
 import type { INodeUi, IUpdateInformation } from '@/Interface';
@@ -537,7 +537,7 @@ function getDependentParametersValues(parameter: INodeProperties): string | null
 function getParameterValue<T extends NodeParameterValueType = NodeParameterValueType>(
 	name: string,
 ): T {
-	return nodeHelpers.getParameterValue(props.nodeValues, name, props.path) as T;
+	return getParameterValueByPath(props.nodeValues, name, props.path) as T;
 }
 
 function isRagStarterCallout(parameter: INodeProperties): boolean {
@@ -627,8 +627,8 @@ const onCalloutDismiss = async (parameter: INodeProperties) => {
 				>
 					<N8nText size="small">
 						<N8nText
-							size="small"
 							v-n8n-html="i18n.nodeText(activeNode?.type).inputLabelDisplayName(parameter, path)"
+							size="small"
 						/>
 						<template v-if="parameter.typeOptions?.calloutAction">
 							{{ ' ' }}
@@ -647,7 +647,7 @@ const onCalloutDismiss = async (parameter: INodeProperties) => {
 
 					<template #trailingContent>
 						<N8nIcon
-							icon="times"
+							icon="x"
 							title="Dismiss"
 							size="medium"
 							type="secondary"
@@ -694,7 +694,7 @@ const onCalloutDismiss = async (parameter: INodeProperties) => {
 									issue
 								}}</span>
 							</template>
-							<N8nIcon icon="exclamation-triangle" size="small" color="danger" />
+							<N8nIcon icon="triangle-alert" size="small" color="danger" />
 						</N8nTooltip>
 					</template>
 				</N8nInputLabel>
@@ -721,21 +721,21 @@ const onCalloutDismiss = async (parameter: INodeProperties) => {
 					</template>
 					<template #fallback>
 						<N8nText size="small" class="async-notice">
-							<N8nIcon icon="sync-alt" size="xsmall" :spin="true" />
+							<N8nIcon icon="refresh-cw" size="xsmall" :spin="true" />
 							{{ i18n.baseText('parameterInputList.loadingFields') }}
 						</N8nText>
 					</template>
 				</Suspense>
 				<N8nText v-else size="small" color="danger" class="async-notice">
-					<N8nIcon icon="exclamation-triangle" size="xsmall" />
+					<N8nIcon icon="triangle-alert" size="xsmall" />
 					{{ i18n.baseText('parameterInputList.loadingError') }}
 				</N8nText>
 				<N8nIconButton
 					v-if="hideDelete !== true && !isReadOnly && !parameter.isNodeSetting"
 					type="tertiary"
 					text
-					size="mini"
-					icon="trash"
+					size="small"
+					icon="trash-2"
 					class="icon-button"
 					:title="i18n.baseText('parameterInputList.delete')"
 					@click="deleteOption(parameter.name)"
@@ -777,8 +777,8 @@ const onCalloutDismiss = async (parameter: INodeProperties) => {
 					v-if="hideDelete !== true && !isReadOnly && !parameter.isNodeSetting"
 					type="tertiary"
 					text
-					size="mini"
-					icon="trash"
+					size="small"
+					icon="trash-2"
 					class="icon-button"
 					:title="i18n.baseText('parameterInputList.delete')"
 					@click="deleteOption(parameter.name)"
@@ -813,8 +813,8 @@ const onCalloutDismiss = async (parameter: INodeProperties) => {
 	.icon-button {
 		position: absolute;
 		opacity: 0;
-		top: 0;
-		left: calc(-0.5 * var(--spacing-2xs));
+		top: -3px;
+		left: calc(-0.5 * var(--spacing-xs));
 		transition: opacity 100ms ease-in;
 		Button {
 			color: var(--color-icon-base);

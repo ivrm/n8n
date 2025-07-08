@@ -464,7 +464,7 @@ const allVisibleItemsSelected = computed(() => {
 		}
 		const notSelectedVisibleItems = workflowsSet.difference(toRaw(activeSelection.value));
 
-		return !Boolean(notSelectedVisibleItems.size);
+		return !notSelectedVisibleItems.size;
 	}
 
 	if (activeTab.value === SOURCE_CONTROL_FILE_TYPE.credential) {
@@ -474,7 +474,7 @@ const allVisibleItemsSelected = computed(() => {
 		}
 		const notSelectedVisibleItems = credentialsSet.difference(toRaw(activeSelection.value));
 
-		return !Boolean(notSelectedVisibleItems.size);
+		return !notSelectedVisibleItems.size;
 	}
 
 	return false;
@@ -595,7 +595,7 @@ function castProject(project: ProjectListItem) {
 					<N8nPopover trigger="click" width="304" style="align-self: normal">
 						<template #reference>
 							<N8nButton
-								icon="filter"
+								icon="funnel"
 								type="tertiary"
 								style="height: 100%"
 								:active="Boolean(filterCount)"
@@ -654,11 +654,11 @@ function castProject(project: ProjectListItem) {
 						usersStore.currentUser.role !== ROLE.Owner && usersStore.currentUser.role !== ROLE.Admin
 					"
 				>
-					<N8nCallout theme="secondary" class="mt-s" v-if="!projectAdminCalloutDismissed">
+					<N8nCallout v-if="!projectAdminCalloutDismissed" theme="secondary" class="mt-s">
 						{{ i18n.baseText('settings.sourceControl.modals.push.projectAdmin.callout') }}
 						<template #trailingContent>
 							<N8nIcon
-								icon="times"
+								icon="x"
 								title="Dismiss"
 								size="medium"
 								type="secondary"
